@@ -1,8 +1,11 @@
 # Performance Evaluation of 5G eMBB Network Slicing for Simulated Smart Factory Video Streams using free5GC
 
 **113-2 5G Network Foundation - Team 1**
+
 Advisor: Shu-hao Liang
+
 TA: Marnel Patrick Junior Altius
+
 Student: Hua-chen Shih (M11351020), VO THANH TUNG (D11203820)
 
 ---

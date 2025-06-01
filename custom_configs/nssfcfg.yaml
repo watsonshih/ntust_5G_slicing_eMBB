@@ -1,0 +1,373 @@
+info:
+  version: 1.0.2 # Kept original version
+  description: NSSF local configuration for eMBB-High and eMBB-Medium slices
+
+configuration:
+  nssfName: NSSF # the name of this NSSF
+  sbi: # Service-based interface information
+    scheme: http # the protocol for sbi (http or https)
+    registerIPv4: nssf.free5gc.org # IP used to register to NRF
+    bindingIPv4: nssf.free5gc.org  # IP used to bind the service
+    port: 8000 # Port used to bind the service
+    tls: # the local path of TLS key
+      pem: cert/nssf.pem # NSSF TLS Certificate
+      key: cert/nssf.key # NSSF TLS Private key
+  serviceNameList: # The SBI services provided by this NSSF
+    - nnssf-nsselection # Nnssf_NSSelection service
+    - nnssf-nssaiavailability # Nnssf_NSSAIAvailability service
+  nrfUri: http://nrf.free5gc.org:8000 # A valid URI of NRF
+  nrfCertPem: cert/nrf.pem # NRF Certificate (if NRF uses HTTPS)
+
+  supportedPlmnList: # The PLMNs (Public Land Mobile Network) list supported by this NSSF
+    - mcc: "208" # Mobile Country Code
+      mnc: "93"  # Mobile Network Code
+
+  # This section defines which S-NSSAIs are supported/available in a given PLMN.
+  # We need to ensure our target S-NSSAIs are listed here for our PLMN.
+  supportedNssaiInPlmnList:
+    - plmnId: # Public Land Mobile Network ID
+        mcc: "208" # Matches supportedPlmnList
+        mnc: "93"  # Matches supportedPlmnList
+      supportedSnssaiList: # Supported S-NSSAIs of the PLMN
+        # Our target S-NSSAIs for the experiment
+        - sst: 1 # Slice/Service Type for eMBB-High
+          sd: "000065" # Slice Differentiator for eMBB-High
+        - sst: 1 # Slice/Service Type for eMBB-Medium
+          sd: "000066" # Slice Differentiator for eMBB-Medium
+        # You can keep or remove other S-NSSAIs from your original config as needed.
+        # For a clean experiment, you might want to only keep the ones you test.
+        # Keeping them for now as they were in your original config:
+        # - sst: 1
+        #   sd: "010203"
+        # - sst: 1
+        #   sd: "112233"
+        # - sst: 1
+        #   sd: "000003"
+        # - sst: 2
+        #   sd: "000001"
+        # - sst: 2
+        #   sd: "000002"
+
+  # This section maps an S-NSSAI to Network Slice Instance(s) (NSI).
+  # An NSI represents a deployed instance of a network slice.
+  # For basic functionality, we need to ensure our S-NSSAIs map to an NRF that can find NFs for that slice.
+  # The nsiId is an identifier for the NSI.
+  nsiList:
+    # NSI for eMBB-High
+    - snssai:
+        sst: 1
+        sd: "000065" # eMBB-High S-NSSAI
+      nsiInformationList:
+        - nrfId: http://nrf.free5gc.org:8000/nnrf-nfm/v1/nf-instances # NRF for this NSI
+          nsiId: "101" # Unique NSI ID for eMBB-High (using string for nsiId is safer)
+
+    # NSI for eMBB-Medium
+    - snssai:
+        sst: 1
+        sd: "000066" # eMBB-Medium S-NSSAI
+      nsiInformationList:
+        - nrfId: http://nrf.free5gc.org:8000/nnrf-nfm/v1/nf-instances # NRF for this NSI
+          nsiId: "102" # Unique NSI ID for eMBB-Medium
+
+    # Keeping original nsiList entries, ensure nsiId are unique if S-NSSAIs are different.
+    # If an S-NSSAI is defined in supportedNssaiInPlmnList, it's good practice to have a corresponding nsiList entry.
+    - snssai: # Original entry from your config
+        sst: 1
+        sd: "010203"
+      nsiInformationList:
+        - nrfId: http://nrf.free5gc.org:8000/nnrf-nfm/v1/nf-instances
+          nsiId: "22" # Original NSI ID
+    - snssai: # Original entry
+        sst: 1
+        sd: "112233"
+      nsiInformationList:
+        - nrfId: http://nrf.free5gc.org:8000/nnrf-nfm/v1/nf-instances
+          nsiId: "23" # Original NSI ID
+    - snssai:
+        sst: 1
+        sd: "000003"
+      nsiInformationList:
+        - nrfId: http://nrf.free5gc.org:8000/nnrf-nfm/v1/nf-instances
+          nsiId: "13"
+    - snssai:
+        sst: 2
+        sd: "000001"
+      nsiInformationList:
+        - nrfId: http://nrf.free5gc.org:8000/nnrf-nfm/v1/nf-instances
+          nsiId: "21" # NSI ID was 21 in original config for sst:2, sd:000001
+    - snssai:
+        sst: 2
+        sd: "000002"
+      nsiInformationList:
+        - nrfId: http://nrf.free5gc.org:8000/nnrf-nfm/v1/nf-instances
+          nsiId: "202" # Made this NSI ID unique, original was '20' for sst:2 with no sd.
+                       # Assuming this sst:2, sd:000002 is a distinct slice instance.
+
+  # The following sections (amfSetList, amfList, taList, mappingListFromPlmn) are complex
+  # and define how NSSF maps S-NSSAIs to AMFs based on TAI, or handles roaming scenarios.
+  # For a basic single-PLMN, single-TAI setup focused on your two slices,
+  # we need to ensure the TAI used by your gNB (mcc: "208", mnc: "93", tac: 1)
+  # is configured here to support your target S-NSSAIs.
+
+  # Assuming your gNB uses mcc: "208", mnc: "93", tac: 1
+  # We can simplify amfSetList and taList for clarity or ensure existing entries cover our TAC.
+  # The original config had different PLMNs (466/92) in amfSetList and taList.
+  # We will adjust one TAI entry to match your PLMN and gNB's TAC (1).
+
+  amfSetList:
+    - amfSetId: "1" # AMF Set identifier (string)
+      # amfList: # List of AMF instance IDs in this set (optional if nrfAmfSet is used)
+      #  - "ffa2e8d7-3275-49c7-8631-6af1df1d9d26" # Example AMF ID
+      nrfAmfSet: http://nrf.free5gc.org:8000/nnrf-nfm/v1/nf-instances # NRF to find AMFs
+      supportedNssaiAvailabilityData: # NSSAI availability for TAs served by this AMF Set
+        - tai:
+            plmnId:
+              mcc: "208" # Your PLMN
+              mnc: "93"  # Your PLMN
+            tac: "1"   # Your gNB's TAC
+          supportedSnssaiList: # S-NSSAIs supported in this TAI by this AMF Set
+            - sst: 1
+              sd: "000065" # eMBB-High
+            - sst: 1
+              sd: "000066" # eMBB-Medium
+            # Include other S-NSSAIs if this AMF set also supports them in this TAI
+            # - sst: 1
+            #   sd: "010203"
+            # - sst: 1
+            #   sd: "112233"
+
+  # taList: # This section might be redundant if amfSetList.supportedNssaiAvailabilityData is well-defined.
+  #         # Or it provides a global view of TAI to S-NSSAI mapping.
+  #         # For simplicity, we ensure our TAI is covered.
+  #   - tai:
+  #       plmnId:
+  #         mcc: "208"
+  #         mnc: "93"
+  #       tac: "1"
+  #     accessType: "3GPP_ACCESS"
+  #     supportedSnssaiList:
+  #       - sst: 1
+  #         sd: "000065"
+  #       - sst: 1
+  #         sd: "000066"
+  #       - sst: 1
+  #         sd: "010203"
+  #       - sst: 1
+  #         sd: "112233"
+
+  # mappingListFromPlmn is for roaming scenarios, likely not critical for your current lab setup.
+  # You can keep it as is from your original config or simplify/remove it if not testing roaming.
+  mappingListFromPlmn: # Kept original content for now
+    - operatorName: "NTT Docomo"
+      homePlmnId:
+        mcc: "440"
+        mnc: "10"
+      mappingOfSnssai:
+        - servingSnssai: { sst: 1, sd: "000001" }
+          homeSnssai: { sst: 1, sd: "1" } # Original had sd: 1 (not 6 hex), might be specific
+        - servingSnssai: { sst: 1, sd: "000002" }
+          homeSnssai: { sst: 1, sd: "000003" }
+        - servingSnssai: { sst: 1, sd: "000003" }
+          homeSnssai: { sst: 1, sd: "000004" }
+        - servingSnssai: { sst: 2, sd: "000001" }
+          homeSnssai: { sst: 2, sd: "000002" }
+    - operatorName: "AT&T Mobility"
+      homePlmnId:
+        mcc: "310"
+        mnc: "560"
+      mappingOfSnssai:
+        - servingSnssai: { sst: 1, sd: "000001" }
+          homeSnssai: { sst: 1, sd: "000002" }
+        - servingSnssai: { sst: 1, sd: "000002" }
+          homeSnssai: { sst: 1, sd: "000003" }
+
+logger: # log output setting
+  enable: true # true or false
+  level: info # how detailed to output, value: trace, debug, info, warn, error, fatal, panic
+  reportCaller: false # enable the caller report or not, value: true or falseinfo:
+  version: 1.0.2 # Kept original version
+  description: NSSF local configuration for eMBB-High and eMBB-Medium slices
+
+configuration:
+  nssfName: NSSF # the name of this NSSF
+  sbi: # Service-based interface information
+    scheme: http # the protocol for sbi (http or https)
+    registerIPv4: nssf.free5gc.org # IP used to register to NRF
+    bindingIPv4: nssf.free5gc.org  # IP used to bind the service
+    port: 8000 # Port used to bind the service
+    tls: # the local path of TLS key
+      pem: cert/nssf.pem # NSSF TLS Certificate
+      key: cert/nssf.key # NSSF TLS Private key
+  serviceNameList: # The SBI services provided by this NSSF
+    - nnssf-nsselection # Nnssf_NSSelection service
+    - nnssf-nssaiavailability # Nnssf_NSSAIAvailability service
+  nrfUri: http://nrf.free5gc.org:8000 # A valid URI of NRF
+  nrfCertPem: cert/nrf.pem # NRF Certificate (if NRF uses HTTPS)
+
+  supportedPlmnList: # The PLMNs (Public Land Mobile Network) list supported by this NSSF
+    - mcc: "208" # Mobile Country Code
+      mnc: "93"  # Mobile Network Code
+
+  # This section defines which S-NSSAIs are supported/available in a given PLMN.
+  # We need to ensure our target S-NSSAIs are listed here for our PLMN.
+  supportedNssaiInPlmnList:
+    - plmnId: # Public Land Mobile Network ID
+        mcc: "208" # Matches supportedPlmnList
+        mnc: "93"  # Matches supportedPlmnList
+      supportedSnssaiList: # Supported S-NSSAIs of the PLMN
+        # Our target S-NSSAIs for the experiment
+        - sst: 1 # Slice/Service Type for eMBB-High
+          sd: "000065" # Slice Differentiator for eMBB-High
+        - sst: 1 # Slice/Service Type for eMBB-Medium
+          sd: "000066" # Slice Differentiator for eMBB-Medium
+        # You can keep or remove other S-NSSAIs from your original config as needed.
+        # For a clean experiment, you might want to only keep the ones you test.
+        # Keeping them for now as they were in your original config:
+        - sst: 1
+          sd: "010203"
+        - sst: 1
+          sd: "112233"
+        - sst: 1
+          sd: "000003"
+        - sst: 2
+          sd: "000001"
+        - sst: 2
+          sd: "000002"
+
+  # This section maps an S-NSSAI to Network Slice Instance(s) (NSI).
+  # An NSI represents a deployed instance of a network slice.
+  # For basic functionality, we need to ensure our S-NSSAIs map to an NRF that can find NFs for that slice.
+  # The nsiId is an identifier for the NSI.
+  nsiList:
+    # NSI for eMBB-High
+    - snssai:
+        sst: 1
+        sd: "000065" # eMBB-High S-NSSAI
+      nsiInformationList:
+        - nrfId: http://nrf.free5gc.org:8000/nnrf-nfm/v1/nf-instances # NRF for this NSI
+          nsiId: "101" # Unique NSI ID for eMBB-High (using string for nsiId is safer)
+
+    # NSI for eMBB-Medium
+    - snssai:
+        sst: 1
+        sd: "000066" # eMBB-Medium S-NSSAI
+      nsiInformationList:
+        - nrfId: http://nrf.free5gc.org:8000/nnrf-nfm/v1/nf-instances # NRF for this NSI
+          nsiId: "102" # Unique NSI ID for eMBB-Medium
+
+    # Keeping original nsiList entries, ensure nsiId are unique if S-NSSAIs are different.
+    # If an S-NSSAI is defined in supportedNssaiInPlmnList, it's good practice to have a corresponding nsiList entry.
+    - snssai: # Original entry from your config
+        sst: 1
+        sd: "010203"
+      nsiInformationList:
+        - nrfId: http://nrf.free5gc.org:8000/nnrf-nfm/v1/nf-instances
+          nsiId: "22" # Original NSI ID
+    - snssai: # Original entry
+        sst: 1
+        sd: "112233"
+      nsiInformationList:
+        - nrfId: http://nrf.free5gc.org:8000/nnrf-nfm/v1/nf-instances
+          nsiId: "23" # Original NSI ID
+    - snssai:
+        sst: 1
+        sd: "000003"
+      nsiInformationList:
+        - nrfId: http://nrf.free5gc.org:8000/nnrf-nfm/v1/nf-instances
+          nsiId: "13"
+    - snssai:
+        sst: 2
+        sd: "000001"
+      nsiInformationList:
+        - nrfId: http://nrf.free5gc.org:8000/nnrf-nfm/v1/nf-instances
+          nsiId: "21" # NSI ID was 21 in original config for sst:2, sd:000001
+    - snssai:
+        sst: 2
+        sd: "000002"
+      nsiInformationList:
+        - nrfId: http://nrf.free5gc.org:8000/nnrf-nfm/v1/nf-instances
+          nsiId: "202" # Made this NSI ID unique, original was '20' for sst:2 with no sd.
+                       # Assuming this sst:2, sd:000002 is a distinct slice instance.
+
+  # The following sections (amfSetList, amfList, taList, mappingListFromPlmn) are complex
+  # and define how NSSF maps S-NSSAIs to AMFs based on TAI, or handles roaming scenarios.
+  # For a basic single-PLMN, single-TAI setup focused on your two slices,
+  # we need to ensure the TAI used by your gNB (mcc: "208", mnc: "93", tac: 1)
+  # is configured here to support your target S-NSSAIs.
+
+  # Assuming your gNB uses mcc: "208", mnc: "93", tac: 1
+  # We can simplify amfSetList and taList for clarity or ensure existing entries cover our TAC.
+  # The original config had different PLMNs (466/92) in amfSetList and taList.
+  # We will adjust one TAI entry to match your PLMN and gNB's TAC (1).
+
+  amfSetList:
+    - amfSetId: "1" # AMF Set identifier (string)
+      # amfList: # List of AMF instance IDs in this set (optional if nrfAmfSet is used)
+      #  - "ffa2e8d7-3275-49c7-8631-6af1df1d9d26" # Example AMF ID
+      nrfAmfSet: http://nrf.free5gc.org:8000/nnrf-nfm/v1/nf-instances # NRF to find AMFs
+      supportedNssaiAvailabilityData: # NSSAI availability for TAs served by this AMF Set
+        - tai:
+            plmnId:
+              mcc: "208" # Your PLMN
+              mnc: "93"  # Your PLMN
+            tac: "1"   # Your gNB's TAC
+          supportedSnssaiList: # S-NSSAIs supported in this TAI by this AMF Set
+            - sst: 1
+              sd: "000065" # eMBB-High
+            - sst: 1
+              sd: "000066" # eMBB-Medium
+            # Include other S-NSSAIs if this AMF set also supports them in this TAI
+            - sst: 1
+              sd: "010203"
+            - sst: 1
+              sd: "112233"
+
+  # taList: # This section might be redundant if amfSetList.supportedNssaiAvailabilityData is well-defined.
+  #         # Or it provides a global view of TAI to S-NSSAI mapping.
+  #         # For simplicity, we ensure our TAI is covered.
+  #   - tai:
+  #       plmnId:
+  #         mcc: "208"
+  #         mnc: "93"
+  #       tac: "1"
+  #     accessType: "3GPP_ACCESS"
+  #     supportedSnssaiList:
+  #       - sst: 1
+  #         sd: "000065"
+  #       - sst: 1
+  #         sd: "000066"
+  #       - sst: 1
+  #         sd: "010203"
+  #       - sst: 1
+  #         sd: "112233"
+
+  # mappingListFromPlmn is for roaming scenarios, likely not critical for your current lab setup.
+  # You can keep it as is from your original config or simplify/remove it if not testing roaming.
+  mappingListFromPlmn: # Kept original content for now
+    - operatorName: "NTT Docomo"
+      homePlmnId:
+        mcc: "440"
+        mnc: "10"
+      mappingOfSnssai:
+        - servingSnssai: { sst: 1, sd: "000001" }
+          homeSnssai: { sst: 1, sd: "1" } # Original had sd: 1 (not 6 hex), might be specific
+        - servingSnssai: { sst: 1, sd: "000002" }
+          homeSnssai: { sst: 1, sd: "000003" }
+        - servingSnssai: { sst: 1, sd: "000003" }
+          homeSnssai: { sst: 1, sd: "000004" }
+        - servingSnssai: { sst: 2, sd: "000001" }
+          homeSnssai: { sst: 2, sd: "000002" }
+    - operatorName: "AT&T Mobility"
+      homePlmnId:
+        mcc: "310"
+        mnc: "560"
+      mappingOfSnssai:
+        - servingSnssai: { sst: 1, sd: "000001" }
+          homeSnssai: { sst: 1, sd: "000002" }
+        - servingSnssai: { sst: 1, sd: "000002" }
+          homeSnssai: { sst: 1, sd: "000003" }
+
+logger: # log output setting
+  enable: true # true or false
+  level: info # how detailed to output, value: trace, debug, info, warn, error, fatal, panic
+  reportCaller: false # enable the caller report or not, value: true or false

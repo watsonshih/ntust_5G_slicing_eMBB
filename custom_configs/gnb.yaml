@@ -1,0 +1,41 @@
+mcc: "208" # Mobile Country Code value
+mnc: "93" # Mobile Network Code value (2 or 3 digits)
+
+nci: "0x000000010" # NR Cell Identity (36-bit)
+idLength: 32 # NR gNB ID length in bits [22...32]
+tac: 1 # Tracking Area Code
+
+# gNB IP addresses
+# linkIp is for internal UERANSIM radio link simulation.
+# ngapIp and gtpIp are for N2 and N3 interfaces towards AMF and UPF respectively.
+# In Docker, these should be the gNB container's IP/hostname on the shared network.
+# 'gnb.free5gc.org' is typically the service name defined in docker-compose.
+linkIp: gnb.free5gc.org # Changed from 127.0.0.1 to be consistent if radio link needs external interaction or for clarity
+ngapIp: gnb.free5gc.org # gNB's local IP address for N2 Interface
+gtpIp: gnb.free5gc.org # gNB's local IP address for N3 Interface
+
+# List of AMF address information
+amfConfigs:
+  - address: amf.free5gc.org # AMF's FQDN in the Docker network
+    port: 38412
+
+# List of supported S-NSSAIs by this gNB
+# We will define the S-NSSAIs for eMBB-High and eMBB-Medium here.
+# SST (Slice/Service Type) for eMBB is typically 1.
+# SD (Slice Differentiator) should match what's in smfcfg.yaml.
+# UERANSIM expects SD as a hexadecimal string without "0x" prefix here,
+# and it should correspond to the 6 hex characters.
+slices:
+  - sst: 1 # For eMBB-High slice
+    sd: "000065" # Matches smfcfg.yaml for eMBB-High
+  - sst: 1 # For eMBB-Medium slice
+    sd: "000066" # Matches smfcfg.yaml for eMBB-Medium
+  # You can remove or keep the original slices below if needed for other tests,
+  # but for this specific experiment, the two above are primary.
+  # - sst: 1 # Original slice example 1
+  #   sd: "010203"
+  # - sst: 1 # Original slice example 2
+  #   sd: "112233"
+
+# Indicates whether or not SCTP stream number errors should be ignored.
+ignoreStreamIds: true

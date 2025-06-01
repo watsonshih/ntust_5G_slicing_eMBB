@@ -1,0 +1,110 @@
+info:
+  version: 1.0.7 
+  description: Simplified Routing information for general UE traffic
+
+# We will use a simpler structure that defines default paths for DNNs/S-NSSAIs
+# rather than per-IMSI groups, unless your smfcfg.yaml implies otherwise.
+# For now, let's assume SMF will use a default routing if specific UE routing is not found.
+# Or, we can define a very generic entry.
+
+# Option 1: Minimalist uerouting.yaml (relying on SMF defaults or NRF for UPF selection if complex routing not needed)
+# If your goal is just to use the single UPF defined in smfcfg.yaml for all traffic
+# for these S-NSSAIs, SMF might be able to select it without a complex uerouting.yaml.
+# However, to be explicit and ensure SMF uses the correct UPF, we can define a default profile.
+
+# Option 2: Explicit default routing (Recommended for clarity)
+# This structure is more aligned with some free5GC examples where SMF needs
+# an explicit routing profile.
+# The key "UERoutingInfo" from your original file seems to be a custom/older format.
+# A more common structure (though versions vary) might involve directly listing profiles
+# or having a top-level default.
+
+# Let's try a structure that's known to work with simpler SMF configurations,
+# focusing on a default path for the "internet" DNN via our "UPF".
+# This structure is a simplified interpretation of what some free5GC versions expect.
+
+# If the SMF still reads "UERoutingInfo" as the top key, we adapt.
+# Given your SMF log read "uerouting.yaml", it will parse what's given.
+# We need to ensure the UPF name here matches the UPF name in smfcfg.yaml's userplaneInformation.
+# The UPF key in your smfcfg.yaml is "UPF".
+
+# Simplified approach: Remove specific UE groups and complex topologies.
+# Rely on SMF to select the "UPF" defined in smfcfg.yaml for the S-NSSAIs.
+# If SMF *requires* uerouting.yaml to explicitly map S-NSSAI/DNN to a UPF path,
+# then we need to add entries for our S-NSSAIs.
+
+# Let's create a very generic uerouting.yaml.
+# The structure of your original uerouting.yaml is quite specific.
+# For a general case with a single UPF named "UPF" in smfcfg.yaml,
+# often a very simple uerouting or even its absence (relying on smfcfg.yaml's UPF list) works.
+# However, since SMF is reading it, let's provide a minimal valid structure
+# that doesn't conflict with our single "UPF" setup.
+
+# It's possible your SMF version doesn't strictly need uerouting.yaml if
+# userplaneInformation in smfcfg.yaml is clear and only has one UPF option for the given S-NSSAI.
+# The errors "fail to allocate PDU address" and "UPF not associated" could be due to SMF
+# trying to apply complex rules from the original uerouting.yaml that reference UPFs
+# (I-UPF, PSA-UPF, BranchingUPF, AnchorUPF1/2) not defined in your current smfcfg.yaml.
+
+# Simplification: Remove all content from uerouting.yaml and leave it almost empty,
+# or with a very basic default that points to your single "UPF".
+
+# Attempt 1: Make it very simple, assuming SMF can pick the single UPF from smfcfg.yaml if no specific rules here.
+# (If this causes issues, we might need to add a default route profile pointing to "UPF")
+
+# Let's try an even more radically simplified version based on some other free5GC examples
+# This is a common alternative structure for uerouting.yaml
+# Remove all `ueRoutingInfo`, `routeProfile`, `pfdDataForApp`
+# And define a default path or let SMF use the UPF from smfcfg.yaml directly.
+
+# Given the SMF error points to PDU address allocation and UPF association,
+# the complex routing in the original uerouting.yaml referencing non-existent UPFs
+# (I-UPF, PSA-UPF etc. in the context of your simplified smfcfg.yaml) is highly problematic.
+
+# New simplified content for custom_configs/uerouting.yaml:
+# This version explicitly defines a default route for the "internet" DNN to use the "UPF"
+# defined in your smfcfg.yaml.
+
+routeSelectionParameterSets: # This is a key often seen in some uerouting examples
+  - id: defaultRoute # An identifier for this parameter set
+    dnn: internet # Apply to this DNN
+    # We can also add snssai here if we want this route to be specific to an S-NSSAI
+    # snssai:
+    #   sst: 1
+    #   sd: "000065" # Or "000066"
+    precedence: 255 # Lowest precedence, a default catch-all
+    routeProfileId: defaultPathToUPF
+
+routeProfiles:
+  - id: defaultPathToUPF # Matches routeProfileId above
+    pathList:
+      - id: primaryPath
+        upfName: UPF # This MUST match the key of your UPF in smfcfg.yaml's userplaneInformation.upNodes
+        # Example: if smfcfg.yaml has "UPF1:" then this should be "UPF1"
+
+# If the above structure is not recognized by your SMF version (as uerouting formats can vary),
+# an even simpler approach is to try with an almost empty uerouting.yaml,
+# or one that just defines the UserPlaneNode anmed "UPF" if required by syntax but not for complex routing logic.
+
+# Fallback minimal structure (if the above `routeSelectionParameterSets` is not recognized):
+# This is closer to one of the examples I provided earlier.
+# UERoutingInfo: [] # Empty list, relying on smfcfg.yaml for UPF selection for the S-NSSAI
+# RouteProfiles: []
+
+# Let's use a structure that is a simplified version of your original,
+# but only references the UPF that actually exists in your smfcfg.yaml.
+# We'll define a default group that all your UEs can fall into.
+
+ueRoutingInfo:
+  DefaultRouteForAll: # A generic group name
+    members: # We can leave this empty to act as a default or add your test IMSIs
+      - imsi-208930000000001
+      - imsi-208930000000002
+    topology: # Simplified topology
+      - A: gNB1 # Logical gNB name
+        B: UPF  # This MUST match the name of the UPF in smfcfg.yaml (e.g., "UPF")
+    # No specificPath needed for this simple setup; SMF should use the topology.
+
+# Remove routeProfile and pfdDataForApp for now to simplify
+# routeProfile: {}
+# pfdDataForApp: []

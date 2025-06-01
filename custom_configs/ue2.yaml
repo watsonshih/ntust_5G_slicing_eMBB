@@ -1,0 +1,79 @@
+# IMSI number of the UE. IMSI = [MCC|MNC|MSISDN] (In total 15 digits)
+supi: "imsi-208930000000002" # Unique SUPI for UE2
+# Mobile Country Code value of HPLMN
+mcc: "208"
+# Mobile Network Code value of HPLMN (2 or 3 digits)
+mnc: "93"
+
+# Permanent subscription key
+key: "8baf473f2f8fd09487cccbd7097c6862" # Can be same as UE1 for simplicity if UDM allows
+# Operator code (OP or OPC) of the UE
+op: "8e27b6af0e692e750f32667a3b14605d" # Can be same as UE1
+# This value specifies the OP type and it can be either 'OP' or 'OPC'
+opType: "OPC" # Can be same as UE1
+# Authentication Management Field (AMF) value
+amf: "8000" # Can be same as UE1
+# IMEI number of the device. It is used if no SUPI is provided
+imei: "356938035643802" # Slightly different IMEI for UE2
+# IMEISV number of the device. It is used if no SUPI and IMEI is provided
+imeiSv: "4370816125816152" # Can be same or different
+
+# List of gNB IP addresses for Radio Link Simulation
+gnbSearchList:
+  - gnb.free5gc.org # Use the service name of the gNB in Docker network
+
+# UAC Access Identities Configuration
+uacAic:
+  mps: false
+  mcs: false
+
+# UAC Access Control Class
+uacAcc:
+  normalClass: 0
+  class11: false
+  class12: false
+  class13: false
+  class14: false
+  class15: false
+
+# Initial PDU sessions to be established
+# This UE will request the eMBB-Medium slice
+sessions:
+  - type: "IPv4" # PDU Session Type
+    apn: "internet" # Access Point Name
+    slice: # Requested S-NSSAI
+      sst: 1 # SST for eMBB
+      sd: "000102" # SD for eMBB-Medium slice
+    # Optional: PDU Session Type
+    # pduSessionType: IPv4
+    # Optional: SSC mode
+    # sscMode: 3
+
+# Configured NSSAI for this UE by HPLMN
+configured-nssai:
+  - sst: 1
+    sd: "000102" # UE2 is configured for eMBB-Medium
+  # - sst: 1 # Optionally, UE2 could also be configured for High.
+  #   sd: "000101"
+
+# Default Configured NSSAI for this UE
+default-nssai:
+  - sst: 1
+    sd: "000102" # Default to eMBB-Medium for this UE
+
+# Supported integrity algorithms by this UE
+integrity:
+  IA1: true
+  IA2: true
+  IA3: true
+
+# Supported encryption algorithms by this UE
+ciphering:
+  EA1: true
+  EA2: true
+  EA3: true
+
+# Integrity protection maximum data rate for user plane
+integrityMaxRate:
+  uplink: "full"
+  downlink: "full"

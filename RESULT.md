@@ -16,20 +16,18 @@ This document details the research methodology and experimental procedure for ev
 
 The study employs free5GC as the 5G Core (5GC) and UERANSIM as the Radio Access Network (RAN) and User Equipment (UE) simulator, all containerized using Docker Compose for ease of deployment and management. KPIs including throughput, Round-Trip Time (RTT), jitter, and packet loss rate will be measured. Resource utilization (CPU, memory, network I/O) of the containerized Network Functions (NFs) will also be monitored.
 
-Four primary scenarios are investigated:
-1.  **Baseline:** A single UE (UE1) connection using its defined high-bandwidth traffic profile, with its S-NSSAI treated with default/best-effort QoS handling by the core network for this scenario.
-2.  **High-Only:** A single UE (UE1) operating exclusively on a configured eMBB-High bandwidth slice, with corresponding S-NSSAI and QoS parameters defined in the core network.
-3.  **Medium-Only:** A single UE (UE2) operating exclusively on a configured eMBB-Medium bandwidth slice, with corresponding S-NSSAI and QoS parameters defined in the core network.
-4.  **Competing:** Both UE1 (eMBB-High) and UE2 (eMBB-Medium) active concurrently, generating traffic to assess slice isolation and performance under contention.
+The core comparison in this analysis focuses on two competitive scenarios:
+1.  **Baseline-Competing:** Two UEs (UE1 with a high-bandwidth traffic profile, UE2 with a medium-bandwidth traffic profile) operate concurrently, both configured to use a **shared, default network policy** without specific S-NSSAI-based differentiation for QoS.
+2.  **Slicing-Competing:** The same two UEs operate concurrently, but UE1 requests a dedicated eMBB-High slice and UE2 requests a dedicated eMBB-Medium slice, with distinct S-NSSAIs and associated (configured) QoS parameters.
 
-A significant consideration in this research is the default free5GC User Plane Function's (UPF) gtp5g kernel module, which, while supporting QoS parameter configuration, has known limitations in strictly enforcing Guaranteed Bit Rate (GBR) and Maximum Bit Rate (MBR) policies at the data plane level. This aspect is crucial in interpreting the performance results.
+This comparison aims to determine if logical slice separation provides tangible performance benefits or isolation under contention compared to a shared resource scenario. A significant consideration is the default free5GC User Plane Function's (UPF) gtp5g kernel module, which has known limitations in strictly enforcing Guaranteed Bit Rate (GBR) and Maximum Bit Rate (MBR) policies at the data plane level.
 
 ## 2. Experiment Environment
 
 ### 2.1. Host & Software Specifications
 
 * **Host Machine:**
-    * CPU: Intel® Core™ i7-10700  (8 Cores / 16 Threads)
+    * CPU: Intel® Core™ i7-10700 (8 Cores / 16 Threads)
     * RAM: 16 GB
     * OS: Ubuntu 24.04.2 LTS
     * Kernel: Linux 6.11.0-26-generic
@@ -54,55 +52,59 @@ A stable multi-slice environment was achieved through iterative configuration an
 
 ### 3.1. S-NSSAI (Single Network Slice Selection Assistance Information) Configuration
 
-* **Problem Resolution**: Ensured consistency in Slice Differentiator (SD) values. UE-requested SDs (`"000101"` for High, `"000102"` for Medium in `ueX.yaml`) were mapped to their Core Network (AMF-interpreted) equivalents (`"000065"` for High, `"000066"` for Medium) across all relevant NF configurations and UDM data.
-* **AMF (`custom_configs/amfcfg.yaml`)**: `plmnSupportList[0].snssaiList` configured with `sd: "000065"` and `sd: "000066"`.
-* **SMF (`custom_configs/smfcfg.yaml`)**: `snssaiInfos` and `userplaneInformation.upNodes.UPF.sNssaiUpfInfos` configured with `sd: "000065"` (Pool: `10.60.0.0/16`) and `sd: "000066"` (Pool: `10.61.0.0/16`).
-* **NSSF (`custom_configs/nssfcfg.yaml`)**: `supportedNssaiInPlmnList` and `nsiList` configured with `sd: "000065"` (NSI: "101") and `sd: "000066"` (NSI: "102").
-* **UERANSIM gNB (`custom_configs/gnb.yaml`)**: `slices` list configured with `sd: "000065"` and `sd: "000066"`.
-* **WebUI/UDM**: Subscribers provisioned with corresponding S-NSSAIs (SDs `"000065"`, `"000066"`) and unique/blank GPSI values.
+* **Problem Resolution**: Ensured consistency in Slice Differentiator (SD) values. UE-requested SDs (`"000101"` for High, `"000102"` for Medium in `ueX.yaml`) were mapped to their Core Network (AMF-interpreted) equivalents (`"000065"` for High, `"000066"` for Medium) across all relevant NF configurations and UDM data for the "Slicing-Competing" scenario.
+* **For "Baseline-Competing" scenario**: UEs were configured to request a shared/default S-NSSAI (e.g., by omitting specific slice requests in `ueX.yaml` or by configuring them to request the same default S-NSSAI like `sst: 1, sd: "000000"`), which was then mapped to a common PDU session policy and IP pool in SMF.
+* **AMF (`custom_configs/amfcfg.yaml`)**: `plmnSupportList[0].snssaiList` configured accordingly for both scenarios (supporting specific SDs for slicing, and the shared/default SD for baseline competing).
+* **SMF (`custom_configs/smfcfg.yaml`)**:
+    * For Slicing: `snssaiInfos` and `userplaneInformation.upNodes.UPF.sNssaiUpfInfos` configured with `sd: "000065"` (Pool: `10.60.0.0/16`) and `sd: "000066"` (Pool: `10.61.0.0/16`).
+    * For Baseline-Competing: A common `sNssaiInfo` (e.g., `sst:1, sd:"000000"`) was configured with a shared DNN and IP pool (e.g., `10.60.0.0/16`).
+* **NSSF (`custom_configs/nssfcfg.yaml`)**: `supportedNssaiInPlmnList` and `nsiList` configured to support all relevant S-NSSAIs (specific ones for slicing, and the shared one for baseline).
+* **UERANSIM gNB (`custom_configs/gnb.yaml`)**: `slices` list configured to support all S-NSSAIs being tested.
+* **WebUI/UDM**:
+    * For Slicing: Subscribers provisioned with distinct S-NSSAIs (SDs `"000065"`, `"000066"`).
+    * For Baseline-Competing: Subscribers provisioned to use the shared S-NSSAI or default PDU session policy.
+    * GPSI (MSISDN) fields ensured to be unique or blank.
 
 ### 3.2. NRF OAuth2 Configuration
 
 * **Problem Resolution**: AMF "401 Unauthorized" errors during AUSF discovery were resolved by disabling NRF OAuth2.
-* **`custom_configs/nrfcfg.yaml`**: `configuration.sbi.oauth` set to `false`. This was a critical step for stable NF registration and discovery.
+* **`custom_configs/nrfcfg.yaml`**: `configuration.sbi.oauth` set to `false`.
 
 ### 3.3. PCF Configuration and WebUI QoS Simplification
 
 * **Problem Resolution**: PCF `index out of range` panics during SM Policy creation were resolved.
 * **`custom_configs/pcfcfg.yaml`**: Maintained as the original default version (1.0.2).
-* **WebUI/UDM QoS Profile Simplification (Critical Fix)**: All configured **Flow Rules were removed** from UE subscriptions in the WebUI. Only basic Session AMBR and Default 5QI values were kept. This stabilized PCF operation.
+* **WebUI/UDM QoS Profile Simplification (Critical Fix)**: All configured **Flow Rules were removed** from UE subscriptions in the WebUI. Only basic Session AMBR and Default 5QI values were kept.
 
 ### 3.4. SMF User Plane Routing (`uerouting.yaml`)
 
-* **Resolution**: Simplified to ensure valid routing paths to the "UPF" node for all SUPIs/DNNs.
+* **Resolution**: Simplified to ensure valid routing paths to the "UPF" node.
 
 ### 3.5. NSSF Configuration (`nssfcfg.yaml`)
 
-* **Problem Resolution**: NSSF "No TA" warnings were resolved by correcting the TAC format.
+* **Problem Resolution**: NSSF "No TA" warnings resolved.
 * **`custom_configs/nssfcfg.yaml`**: `amfSetList[].supportedNssaiAvailabilityData[].tai.tac` set to `"000001"`.
 
 ### 3.6. Required Packages in Containers
 
-* **Resolution**: `iperf3` and `psmisc` (for `killall`) were installed in UPF and UERANSIM UE containers via the experiment script using `apt-get`.
+* **Resolution**: `iperf3` and `psmisc` (for `killall`) were installed in UPF and UERANSIM UE containers via the experiment script.
 
 ## 4. Experiment Design
 
-### 4.1. Slice Definitions & UE Configuration
+### 4.1. Traffic Profiles (UE Configuration)
 
-* **eMBB-High Slice (UE1)**:
-    * UE Request: SST=1, SD="000101". CN Equivalent: SD="000065".
-    * Target iperf3: `-b 75M -P 2` (total 150 Mbps).
-* **eMBB-Medium Slice (UE2)**:
-    * UE Request: SST=1, SD="000102". CN Equivalent: SD="000066".
-    * Target iperf3: `-b 4M -P 10` (total 40 Mbps).
-* Both slices use DNN `internet`.
+* **UE1 (High-Bandwidth Profile)**:
+    * Target iperf3: `-b 75M -P 2` (total 150 Mbps UDP).
+    * In "Slicing-Competing": Requests eMBB-High slice (SST=1, SD="000101" in `ue1.yaml`, maps to CN SD="000065").
+* **UE2 (Medium-Bandwidth Profile)**:
+    * Target iperf3: `-b 4M -P 10` (total 40 Mbps UDP).
+    * In "Slicing-Competing": Requests eMBB-Medium slice (SST=1, SD="000102" in `ue2.yaml`, maps to CN SD="000066").
+* Both UEs use DNN `internet`.
 
-### 4.2. Experiment Scenarios
+### 4.2. Experiment Scenarios Compared
 
-1.  **Baseline**: UE1 active, requesting its slice, treated with default QoS by CN.
-2.  **High-Only**: UE1 active, eMBB-High slice specific QoS intended.
-3.  **Medium-Only**: UE2 active, eMBB-Medium slice specific QoS intended.
-4.  **Competing**: UE1 (eMBB-High) and UE2 (eMBB-Medium) active simultaneously.
+1.  **Baseline-Competing**: UE1 (High-Traffic) and UE2 (Medium-Traffic) operate concurrently. Both UEs are configured to use a shared, default network policy (e.g., by omitting specific slice requests in their respective `.yaml` files or by requesting a common default S-NSSAI like `sst:1, sd:"000000"` which is mapped to a single best-effort PDU session policy in SMF and UDM).
+2.  **Slicing-Competing**: UE1 operates in its eMBB-High slice (requesting S-NSSAI for SD="000065" via its YAML) and UE2 operates in its eMBB-Medium slice (requesting S-NSSAI for SD="000066" via its YAML) concurrently. Distinct QoS parameters are configured for these slices in the UDM/PCF (though UPF enforcement is limited).
 
 ### 4.3. Key Performance Indicators (KPIs)
 
@@ -110,85 +112,94 @@ A stable multi-slice environment was achieved through iterative configuration an
 * RTT (ms, ping: average, 95th percentile)
 * Jitter (ms, iperf3 UDP)
 * Packet Loss Rate (%, iperf3 UDP & ping)
-* Resource Consumption (CPU, Memory, Network I/O for NFs via Prometheus/cAdvisor - *analysis for this is separate from the provided Python script output*)
 
 ## 5. Experiment Execution Procedure
 
-Executed using `run_experiment.sh` script for `TOTAL_REPETITIONS = 5` and `EXPERIMENT_DURATION = 300` seconds (script was tested with shorter durations).
+Executed using `run_experiment.sh` script for `TOTAL_REPETITIONS = 5` and `EXPERIMENT_DURATION = 180` seconds.
 
-### 5.1. Script Workflow Summary:
+### 5.1. Script Workflow Summary for Competing Scenarios:
 
-1.  **Initial Setup**: Starts all 5GC NFs. Installs `iperf3` and `psmisc` in UPF, UE1, and UE2 containers.
+1.  **Initial Setup**: Ensures 5GC NFs are running; installs tools in UPF and UE containers.
 2.  **Outer Loop (Repetitions)**: Iterates 5 times.
-3.  **Inner Loop (Scenarios)**: Sequentially executes Baseline, High-Only, Medium-Only, and Competing scenarios.
-    * **UE Configuration Prompt**: Pauses for manual confirmation/adjustment of `custom_configs/ueransim-ueX.yaml` for the current scenario's slice definition.
-    * Starts gNB and relevant UE(s).
-    * **PDU Session Verification Prompt**: Pauses for manual confirmation of UE PDU session establishment.
+3.  **Scenario Execution (Baseline-Competing then Slicing-Competing)**:
+    * **UE Configuration Prompt**: Pauses for manual confirmation/adjustment of `custom_configs/ueransim-ueX.yaml` to reflect either shared policy (for Baseline-Competing) or distinct slice requests (for Slicing-Competing).
+    * Starts gNB, UE1, and UE2.
+    * **PDU Session Verification**: Pauses for manual confirmation for both UEs.
     * **Cleans Old Results**: Deletes previous log/JSON files for the current scenario and repetition.
-    * **iperf3 Server(s) on UPF**:
-        * Single-UE scenarios: One `iperf3 -s` instance on `IPERF_SERVER_PORT_DEFAULT`.
-        * Competing scenario: Two `iperf3 -s` instances on `IPERF_SERVER_PORT_UE1_COMP` (5201) and `IPERF_SERVER_PORT_UE2_COMP` (5202) respectively. Servers run in detached mode, logging to temporary files in UPF.
-    * **Traffic Generation**: `ping` and `iperf3` clients are run in background from UE containers.
+    * **iperf3 Servers on UPF**: Two `iperf3 -s` instances started on UPF on distinct ports (5201 for UE1 traffic, 5202 for UE2 traffic).
+    * **Traffic Generation**: `ping` and `iperf3` clients run in background from UE1 and UE2.
     * **Wait & Collect**: Waits for test duration, then copies iperf3 JSON from UEs to host.
-    * **Cleanup**: Stops iperf3 server(s) and UE containers.
-4.  **Final gNB Stop**: Stops gNB after all experiments.
+    * **Cleanup**: Stops iperf3 servers and UE containers.
+4.  **Final gNB Stop**.
 
-## 6. Data Analysis & Preliminary Results
+## 6. Data Analysis & Results (5 Repetitions, 180s Duration)
 
-Data was collected and processed using `analyze_experiment_results.py`.
+Data was collected and processed using `analyze_competing_scenarios.py`.
 
 ### 6.1. Summary Statistics (Average of 5 Repetitions)
 
-| Scenario               | Avg_Throughput_Mbps | Std_Throughput_Mbps | Avg_Jitter_ms | Std_Jitter_ms | Avg_RTT_ms | Std_RTT_ms | Avg_RTT_95p_ms | Std_RTT_95p_ms |
-| :--------------------- | :------------------ | :------------------ | :------------ | :------------ | :--------- | :--------- | :------------- | :------------- |
-| Baseline (UE1)         | 149.999564          | 0.000015            | 0.006055      | 0.004803      | 0.0238     | 0.000837   | 0.060010       | 0.005790       |
-| High-Only (UE1)        | 149.999569          | 0.000015            | 0.001971      | 0.000392      | 0.0238     | 0.001095   | 0.057250       | 0.012024       |
-| Medium-Only (UE2)      | 39.999929           | 0.000003            | 0.006731      | 0.001845      | 0.0226     | 0.000548   | 0.036400       | 0.001949       |
-| Competing (UE1-High)   | 149.999575          | 0.000038            | 0.003507      | 0.001667      | 0.0258     | 0.000837   | 0.068400       | 0.003782       |
-| Competing (UE2-Medium) | 39.999926           | 0.000005            | 0.006554      | 0.001180      | 0.0274     | 0.000894   | 0.070020       | 0.002450       |
+| Scenario_Label                          | Avg_Throughput_Mbps | Std_Throughput_Mbps | Avg_Jitter_ms | Std_Jitter_ms | Avg_RTT_ms | Std_RTT_ms | Avg_RTT_95p_ms | Std_RTT_95p_ms |
+| :-------------------------------------- | :------------------ | :------------------ | :------------ | :------------ | :--------- | :--------- | :------------- | :------------- |
+| Baseline-Competing (UE1-HighTraffic)    | 149.999268          | 0.000055            | 0.005789      | 0.005007      | 0.0252     | 0.000837   | 0.067800       | 0.005541       |
+| Baseline-Competing (UE2-MediumTraffic)  | 40.000181           | 0.000002            | 0.011180      | 0.005932      | 0.0254     | 0.000548   | 0.066610       | 0.007135       |
+| Slicing-Competing (UE1-HighSlice)     | 149.999226          | 0.000016            | 0.003227      | 0.001538      | 0.0256     | 0.001517   | 0.068210       | 0.005656       |
+| Slicing-Competing (UE2-MediumSlice)   | 40.000180           | 0.000002            | 0.007635      | 0.002371      | 0.0266     | 0.000894   | 0.069600       | 0.002074       |
 
-*Packet loss was 0% for all scenarios and repetitions.*
+*Packet loss (iperf3 and ping) was 0% for all scenarios and repetitions.*
 
-### 6.2. Statistical Significance (Mann-Whitney U Test, p-values)
+### 6.2. Statistical Significance (Mann-Whitney U Test, p-values from 5 Repetitions)
 
 * **Throughput (Mbps)**:
-    * Baseline (UE1) vs. High-Only (UE1): p=0.7533 (Not Significant)
-    * Baseline (UE1) vs. Medium-Only (UE2): p=0.0079 (**Significant**)
-    * High-Only (UE1) vs. Medium-Only (UE2): p=0.0079 (**Significant**)
-    * High-Only (UE1) vs. Competing (UE1-High): p=0.9166 (Not Significant)
-    * Medium-Only (UE2) vs. Competing (UE2-Medium): p=0.3457 (Not Significant for throughput mean, although the previous 2-rep run showed p=0.0212. With 5 reps, the average throughput for UE2 in competing is 39.999926 vs 39.999929 in medium-only, which is virtually identical.)
+    * Baseline-Competing (UE1-HighTraffic) vs. Slicing-Competing (UE1-HighSlice): p=0.0593 (Not Significant at α=0.05)
+    * Baseline-Competing (UE2-MediumTraffic) vs. Slicing-Competing (UE2-MediumSlice): p=0.2073 (Not Significant)
 * **Jitter (ms)**:
-    * High-Only (UE1) vs. Medium-Only (UE2): p=0.0079 (**Significant**). (High-Only Avg: 0.001971 ms, Medium-Only Avg: 0.006731 ms).
-    * Other jitter comparisons were not statistically significant with 5 repetitions.
+    * Baseline-Competing (UE1-HighTraffic) vs. Slicing-Competing (UE1-HighSlice): p=0.8413 (Not Significant)
+    * Baseline-Competing (UE2-MediumTraffic) vs. Slicing-Competing (UE2-MediumSlice): p=0.3095 (Not Significant)
 * **Average RTT (ms)**:
-    * Baseline (UE1) vs. Medium-Only (UE2): p=0.0434 (**Significant**). (Baseline Avg: 0.0258 ms, Medium-Only Avg: 0.0226 ms).
-    * High-Only (UE1) vs. Competing (UE1-High): p=0.0285 (**Significant**). (High-Only Avg: 0.0238 ms, Competing UE1-High Avg: 0.0258 ms).
-    * Medium-Only (UE2) vs. Competing (UE2-Medium): p=0.0099 (**Significant**). (Medium-Only Avg: 0.0226 ms, Competing UE2-Medium Avg: 0.0274 ms).
+    * Baseline-Competing (UE1-HighTraffic) vs. Slicing-Competing (UE1-HighSlice): p=0.3711 (Not Significant)
+    * Baseline-Competing (UE2-MediumTraffic) vs. Slicing-Competing (UE2-MediumSlice): p=0.0420 (**Significant**)
 * **95th Percentile RTT (ms)**:
-    * Baseline (UE1) vs. Medium-Only (UE2): p=0.0119 (**Significant**).
-    * High-Only (UE1) vs. Medium-Only (UE2): p=0.0117 (**Significant**).
-    * Medium-Only (UE2) vs. Competing (UE2-Medium): p=0.0114 (**Significant**). (Medium-Only Avg 95p RTT: 0.03640 ms, Competing UE2-Medium Avg 95p RTT: 0.07002 ms).
+    * Baseline-Competing (UE1-HighTraffic) vs. Slicing-Competing (UE1-HighSlice): p=0.8325 (Not Significant)
+    * Baseline-Competing (UE2-MediumTraffic) vs. Slicing-Competing (UE2-MediumSlice): p=0.5296 (Not Significant)
 
-### 6.3. Interpretation of Results
+*(Packet loss KPIs were not significantly different as they were consistently 0%).*
 
-* **Slice Configuration & Baseline**: Configuring a slice for UE1 (High-Only) did not significantly alter its throughput, average RTT, or jitter compared to the Baseline when UE1 was the only active UE. This is expected as both achieved the target rate.
-* **Throughput Differentiation**: The system successfully delivered different target throughputs to UE1 (High) and UE2 (Medium) when they ran independently, primarily due to the iperf3 client's `-b` parameter.
-* **Isolation & Contention**:
-    * **UE1 (High Slice) Performance during Contention**: When UE2 (Medium) was active, UE1's throughput and jitter did not significantly change. However, its **average RTT showed a statistically significant, albeit small, increase** (from 0.0238ms to 0.0258ms). This suggests a minor impact on latency for the high-priority slice during contention.
-    * **UE2 (Medium Slice) Performance during Contention**: When UE1 (High) was active, UE2's **average RTT and 95th percentile RTT significantly increased**. Its average throughput remained very close to its target and did not show a statistically significant drop with 5 repetitions (unlike the preliminary p-value with 2 repetitions). This indicates that while UE2 could still achieve its target bandwidth, its latency experience degraded noticeably under contention from the high-bandwidth slice.
-* **Jitter**: The eMBB-High slice (UE1) consistently showed significantly lower jitter than the eMBB-Medium slice (UE2) when run independently.
+### 6.3. Interpretation of Results: "Baseline-Competing" vs. "Slicing-Competing"
+
+This experiment compared the performance of two UEs with different traffic profiles under two competitive scenarios: "Baseline-Competing" (both UEs share a default, undifferentiated network policy) and "Slicing-Competing" (UEs are assigned to logically distinct S-NSSAIs intended for high and medium bandwidth eMBB services).
+
+* **Throughput and Jitter Performance**:
+    * For both UE1 (High-Traffic/High-Slice) and UE2 (Medium-Traffic/Medium-Slice), there were **no statistically significant differences in average throughput or jitter** when comparing the "Baseline-Competing" scenario to the "Slicing-Competing" scenario.
+    * Both UEs consistently achieved their target iperf3 throughput rates (approx. 150 Mbps for UE1, approx. 40 Mbps for UE2) in both competitive setups, with 0% packet loss.
+    * This suggests that, under the tested load conditions and with the existing UPF capabilities, the logical separation provided by S-NSSAIs did not translate into a measurable improvement or degradation in terms of achieved throughput or jitter for either UE profile compared to a shared policy environment.
+
+* **Latency (RTT) Performance**:
+    * **UE1 (High-Traffic/High-Slice)**: No statistically significant differences were observed in average RTT or 95th percentile RTT between the two competitive scenarios.
+    * **UE2 (Medium-Traffic/Medium-Slice)**: A **statistically significant difference was found in average RTT** (p=0.0420). In the "Slicing-Competing" scenario, UE2's average RTT was slightly higher (0.0266 ms) compared to the "Baseline-Competing" scenario (0.0254 ms). However, the 95th percentile RTT did not show a significant difference (p=0.5296).
+    * The slight but statistically significant increase in average RTT for UE2 when specific slicing was applied (compared to baseline competition) is an unexpected finding if slicing is presumed to improve or at least not degrade performance for a given traffic profile under contention. This could potentially indicate minor additional processing overhead related to slice-specific policy handling in the core network that manifests under load, or it could be within the noise floor of such low-latency measurements. Given the 95th percentile RTT was not significantly different, the practical impact of this average RTT change is minimal.
+
+* **Overall Impact of Slicing under Contention**:
+    * The results suggest that, for the KPIs measured (throughput, jitter, RTT, packet loss), **configuring distinct S-NSSAIs in the "Slicing-Competing" scenario did not offer a clear and consistent performance advantage or demonstrably better isolation for either UE compared to the "Baseline-Competing" scenario** where both UEs shared a default policy.
+    * Both UEs were able to achieve their target throughputs in both competitive settings, and packet loss remained zero.
+    * The primary statistically significant difference observed was a slight increase in average RTT for the medium-traffic UE (UE2) when specific slicing policies were active during contention, compared to when it competed under a shared default policy.
 
 ## 7. Known Limitations
 
-* **QoS Enforcement by free5GC UPF (gtp5g)**: The default gtp5g kernel module has limited capabilities for strict GBR/MBR enforcement and QFI-based priority scheduling. Observed performance differences are more likely due to achieved target rates set by iperf3 clients and overall system/UPF processing capacity rather than fine-grained QoS policy execution by the UPF data plane. The impact on latency during contention, however, does suggest some level of resource competition.
-* **Simulation Environment**: Results are from a simulated RAN/UE environment on a single host.
-* **Resource Contention**: All components run on a single host, which can lead to resource contention.
+* **QoS Enforcement by free5GC UPF (gtp5g)**: This is the most critical limitation. The default gtp5g kernel module has limited capabilities for strict GBR/MBR enforcement and QFI-based priority scheduling. The observed lack of strong performance differentiation or isolation benefits from slicing in this setup is likely attributable to this UPF limitation. While S-NSSAIs enable logical separation and policy assignment at the control plane, without robust data plane mechanisms, UEs largely share resources in a best-effort manner.
+* **Simulation Environment**: Results are from a simulated RAN/UE environment.
+* **Single Host Resource Contention**: All components run on a single host.
 
 ## 8. Conclusion
 
-The configured network slicing in free5GC, within a Dockerized UERANSIM environment, allowed for the logical separation of UE traffic based on S-NSSAI.
-* The "eMBB-High" slice (UE1) largely maintained its target throughput and relatively stable latency/jitter even when competing with the "eMBB-Medium" slice (UE2), although a small statistically significant increase in average RTT was observed for UE1 during contention.
-* The "eMBB-Medium" slice (UE2) was more noticeably impacted by the presence of the "eMBB-High" slice, experiencing statistically significant increases in both average RTT and 95th percentile RTT. Its average throughput, however, remained close to its target even under contention with 5 repetitions.
-* The results highlight that while logical slicing and policy differentiation (e.g., distinct IP pools, different 5QI in configuration) are possible, the actual data plane performance isolation, particularly for latency-sensitive aspects of lower-priority slices, is influenced by the UPF's QoS enforcement capabilities and overall system load. The observed significant RTT increases for the medium slice under contention suggest that without more robust data plane QoS enforcement, higher-demand slices can degrade the latency performance of others.
+This study investigated the performance impact of S-NSSAI-based network slicing in a free5GC environment under concurrent traffic load, comparing it to a scenario where UEs with different traffic profiles competed under a shared default network policy. Experiments were conducted over 5 repetitions with a 180-second duration per test.
 
-Further analysis should include resource consumption data from Prometheus to correlate these network KPIs with NF-level resource utilization.
+**Key Conclusions**:
+
+1.  **Limited Impact of Logical Slicing on Throughput and Jitter in Competitive Scenarios**: For both the high-bandwidth (UE1) and medium-bandwidth (UE2) traffic profiles, introducing S-NSSAI-based logical slicing did not result in statistically significant improvements or degradations in average throughput or jitter when compared to a scenario where both UEs competed under a common, undifferentiated policy. Both UEs consistently achieved their target throughputs in both competitive settings, with negligible packet loss.
+2.  **Latency (RTT) Observations**:
+    * For the high-bandwidth UE (UE1), no significant difference in RTT (average or 95th percentile) was observed between the "Slicing-Competing" and "Baseline-Competing" scenarios.
+    * For the medium-bandwidth UE (UE2), a statistically significant, albeit small, **increase in average RTT** was observed when specific slicing was applied during contention, compared to the baseline competing scenario. However, its 95th percentile RTT did not show a significant difference.
+3.  **Implications of UPF QoS Limitations**: The overall lack of strong performance differentiation or clear isolation benefits attributable to S-NSSAI based slicing in this experiment is largely consistent with the known limitations of the default free5GC UPF (gtp5g) in enforcing granular QoS at the data plane. While slices can be logically defined and policies assigned, the actual traffic treatment in terms of rate enforcement and prioritization appears to be minimal in the tested UPF.
+4.  **Recommendation for Slicing**: Based on these results, in environments with similar UPF capabilities and where network resources are not severely congested to the point of significant packet loss, **implementing S-NSSAI-based logical slicing alone may not yield substantial performance isolation or benefits over a well-provisioned shared network for the tested UDP traffic profiles.** The decision to implement slicing should consider whether the control-plane differentiation and potential for future integration with more capable UPFs outweigh the current lack of strong data-plane enforcement and any minor overheads. For scenarios demanding strict QoS guarantees and isolation, a UPF with more advanced traffic management features would likely be necessary.
+
+Further analysis of resource consumption data (CPU, memory) from Prometheus is recommended to understand the load on different network functions under these competitive scenarios, which might offer additional context to these performance findings.

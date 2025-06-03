@@ -129,29 +129,30 @@ A stable multi-slice environment was achieved through iterative configuration an
 * RTT (ms, ping: average, 95th percentile)
 * Jitter (ms, iperf3 UDP)
 * Packet Loss Rate (%, iperf3 UDP & ping)
+* Resource Consumption (CPU, Memory, Network I/O for NFs via Prometheus/cAdvisor - *analysis for this is a separate step beyond the scope of the current result tables*)
 
 ## 5. Experiment Execution Procedure
 
-Executed using `run_experiment.sh` script for `TOTAL_REPETITIONS = 5` and `EXPERIMENT_DURATION = 180` seconds.
+Experiments were conducted using an automated Bash script (`run_experiment.sh`) for `TOTAL_REPETITIONS = 5` and an `EXPERIMENT_DURATION = 180` seconds for each test run.
 
 ### 5.1. Script Workflow Summary for Competing Scenarios:
 
-1.  **Initial Setup**: Starts all 5GC NFs. Installs `iperf3` and `psmisc` in UPF and UE containers.
+1.  **Initial Setup**: Ensures all 5GC NFs are running. Installs `iperf3` and `psmisc` in UPF and relevant UE containers.
 2.  **Outer Loop (Repetitions)**: Iterates 5 times.
 3.  **Scenario Execution (Baseline-Competing then Slicing-Competing)**:
     * **UE Configuration Prompt**: Pauses for manual confirmation/adjustment of `custom_configs/ueransim-ueX.yaml` to reflect either shared policy (for Baseline-Competing) or distinct slice requests (for Slicing-Competing).
-    * Starts gNB, UE1, and UE2.
-    * **PDU Session Verification**: Pauses for manual confirmation for both UEs.
-    * **Cleans Old Results**: Deletes previous log/JSON files for the current scenario and repetition.
-    * **iperf3 Servers on UPF**: Two `iperf3 -s` instances started on UPF on distinct ports (5201 for UE1 traffic, 5202 for UE2 traffic).
-    * **Traffic Generation**: `ping` and `iperf3` clients run in background from UE1 and UE2.
-    * **Wait & Collect**: Waits for test duration, then copies iperf3 JSON from UEs to host.
-    * **Cleanup**: Stops iperf3 servers and UE containers.
-4.  **Final gNB Stop**.
+    * Starts gNB and relevant UE(s).
+    * **PDU Session Verification**: Pauses for manual confirmation of UE PDU session establishment for active UE(s).
+    * **Cleans Old Results**: Deletes previous log/JSON files for the current scenario and repetition number.
+    * **iperf3 Servers on UPF**: Two `iperf3 -s` instances are started on UPF on distinct ports (5201 for UE1 traffic, 5202 for UE2 traffic) for the Competing scenarios.
+    * **Traffic Generation**: `ping` and `iperf3` clients are run in background from UE1 and UE2, connecting to their respective iperf3 server ports.
+    * **Wait & Collect**: Waits for test duration, then copies iperf3 JSON from UEs to host. Ping logs are directly saved to the host.
+    * **Cleanup**: Stops iperf3 server(s) and UE container(s) for the scenario.
+4.  **Final gNB Stop**: Stops gNB after all repetitions and scenarios are complete.
 
-## 6. Data Analysis & Results (5 Repetitions, 180s Duration)
+## 6. Data Analysis & Results (Based on 5 Repetitions, 180s Duration)
 
-Data was collected and processed using `analyze_competing_scenarios.py`.
+Data was collected and processed using a Python script (`analyze_competing_scenarios.py`).
 
 ### 6.1. Summary Statistics (Average of 5 Repetitions)
 
@@ -183,24 +184,22 @@ Data was collected and processed using `analyze_competing_scenarios.py`.
 
 ### 6.3. Interpretation of Results: "Baseline-Competing" vs. "Slicing-Competing"
 
-This experiment focused on comparing the performance of two UEs with differing traffic demands under two competitive network conditions: one where both UEs operated under a shared default network policy ("Baseline-Competing"), and another where each UE was assigned to a logically distinct S-NSSAI ("Slicing-Competing").
+This experiment focused on comparing the performance of two UEs with differing traffic demands under two competitive network conditions: "Baseline-Competing" (both UEs operated under a shared default network policy) and "Slicing-Competing" (each UE was assigned to a logically distinct S-NSSAI).
 
 * **Throughput and Jitter Performance**:
-    * For both UE1 (High-Traffic profile) and UE2 (Medium-Traffic profile), there were **no statistically significant differences in average throughput or jitter** when comparing the "Baseline-Competing" scenario to the "Slicing-Competing" scenario.
+    * For both UE1 (High-Traffic/High-Slice) and UE2 (Medium-Traffic/Medium-Slice), there were **no statistically significant differences in average throughput or jitter** when comparing the "Baseline-Competing" scenario to the "Slicing-Competing" scenario.
     * Both UEs consistently achieved their target iperf3 throughput rates (approx. 150 Mbps for UE1, approx. 40 Mbps for UE2) in both competitive setups, with 0% packet loss.
-    * This indicates that under the tested load conditions and with the existing UPF capabilities, the logical separation provided by S-NSSAIs did not translate into a measurable improvement or degradation in terms of achieved throughput or jitter for either UE profile compared to a shared policy environment.
+    * This suggests that, under the tested load conditions and with the existing UPF capabilities, the logical separation provided by S-NSSAIs did not translate into a measurable improvement or degradation in these KPIs compared to a shared policy environment.
 
 * **Latency (RTT) Performance**:
     * **UE1 (High-Traffic/High-Slice)**: No statistically significant differences were observed in average RTT or 95th percentile RTT between the Baseline-Competing and Slicing-Competing scenarios.
     * **UE2 (Medium-Traffic/Medium-Slice)**:
         * A **statistically significant difference was found in average RTT** (p=0.0420). In the "Slicing-Competing" scenario, UE2's average RTT was slightly higher (0.0266 ms) compared to the "Baseline-Competing" scenario (0.0254 ms).
         * The 95th percentile RTT for UE2 did not show a statistically significant difference between the two competitive scenarios (p=0.5296).
-    * The slight but statistically significant increase in average RTT for UE2 when specific slicing was applied (compared to baseline competition) suggests that the process of policy application or traffic handling for distinct slices might have introduced a minor additional latency for the medium slice in the competing environment. However, given that the 95th percentile RTT was not significantly different and the absolute difference in averages is very small (0.0012 ms), the practical impact of this specific finding on user experience might be negligible in this simulated setup.
+    * The slight but statistically significant increase in average RTT for UE2 when specific slicing was applied (compared to baseline competition) suggests that the process of policy application or traffic handling for distinct slices might have introduced a minor additional latency for the medium slice in the competing environment. However, given the extremely small absolute difference (0.0012 ms) and the lack of significant change in the 95th percentile RTT, the practical impact of this specific finding on user experience might be negligible in this highly optimized local simulation environment.
 
 * **Overall Impact of Slicing under Contention**:
-    * The results suggest that, for most KPIs measured (throughput, jitter, 95p RTT, and UE1's average RTT), **configuring distinct S-NSSAIs ("Slicing-Competing") did not demonstrate a clear performance advantage or improved isolation over a shared policy environment ("Baseline-Competing")** for either the high-bandwidth or medium-bandwidth UE under the tested conditions.
-    * The only statistically significant degradation when moving from "Baseline-Competing" to "Slicing-Competing" was a very small increase in the average RTT for UE2.
-    * This implies that when the network is not severely congested to the point of inducing packet loss or drastic throughput drops, the benefits of logical-only slicing (without strong data plane enforcement) may be limited. In such scenarios, the overhead of managing distinct slice policies might even introduce marginal latency increases for some traffic, although this requires careful interpretation given the very low absolute latency values.
+    The results indicate that, for most KPIs measured (throughput, jitter, 95p RTT, and UE1's average RTT), **configuring distinct S-NSSAIs ("Slicing-Competing") did not demonstrate a clear performance advantage or improved isolation over a shared policy environment ("Baseline-Competing")** for either UE profile under the tested conditions. The only statistically significant difference observed was a marginal increase in average RTT for the medium-traffic UE (UE2) when specific slicing policies were active during contention, which is unlikely to be perceptually significant.
 
 ## 7. Known Limitations
 
@@ -210,14 +209,14 @@ This experiment focused on comparing the performance of two UEs with differing t
 
 ## 8. Conclusion
 
-This study investigated the performance impact of S-NSSAI-based network slicing in a free5GC environment under concurrent traffic load, comparing it to a scenario where UEs with different traffic profiles competed under a shared default network policy. Experiments were conducted over 5 repetitions with a 180-second duration per test.
+This study investigated the performance impact of S-NSSAI-based network slicing in a free5GC environment under concurrent traffic load from two UEs with different bandwidth demands. The core comparison was between a "Baseline-Competing" scenario (UEs sharing a default policy) and a "Slicing-Competing" scenario (UEs assigned to logically distinct S-NSSAIs). Experiments were conducted over 5 repetitions with a 180-second duration per test.
 
 **Key Conclusions**:
 
-1.  **Limited Performance Differentiation through Logical Slicing Alone**: In the tested competitive scenarios, the introduction of S-NSSAI-based logical slicing did not yield statistically significant improvements in throughput, jitter, or (for the most part) RTT for either the high-bandwidth or medium-bandwidth UE when compared to a scenario where both UEs shared a common default policy. Both UEs consistently achieved their target throughputs with zero packet loss regardless of the competitive policy configuration (shared vs. sliced).
-2.  **Latency for Medium-Traffic UE**: A minor but statistically significant increase in *average* RTT was observed for the medium-traffic UE (UE2) when specific S-NSSAI-based slicing was applied during contention, compared to the baseline shared-policy contention. However, its 95th percentile RTT did not show a significant difference, suggesting the practical impact of this average RTT increase was likely minimal in this low-latency environment.
-3.  **Impact of UPF QoS Capabilities**: The findings underscore the critical role of the User Plane Function's (UPF) QoS enforcement capabilities. The observed lack of strong performance isolation or benefit from logical slicing in this free5GC setup (using the default gtp5g kernel module) is consistent with its known limitations in strictly enforcing data plane QoS differentiation (e.g., GBR, MBR, priority scheduling).
-4.  **Recommendation on Slicing Strategy**: Based on these results, in environments with similar UPF QoS enforcement limitations and where network capacity is not the primary constraining factor for the offered load, **implementing S-NSSAI-based logical slicing might not provide substantial performance advantages or isolation over a well-managed shared network policy.** The decision to implement slicing should therefore be carefully weighed. If strict QoS guarantees and robust isolation are paramount, a UPF with more advanced traffic management and enforcement features would be essential. In scenarios where overall demand is well within system capacity, the overhead or minor performance variations introduced by slice management (as hinted by UE2's average RTT) might not justify its implementation without more effective data plane mechanisms. **It suggests that a "one-size-fits-all" slicing approach may not always be optimal; instead, slicing should be strategically applied where clear differentiation and guaranteed service levels are critical and can be enforced by the underlying infrastructure.**
+1.  **Limited Performance Differentiation through Logical Slicing Alone**: In the tested competitive scenarios, the introduction of S-NSSAI-based logical slicing did not yield statistically significant improvements or degradations in average throughput or jitter for either the high-bandwidth (UE1) or medium-bandwidth (UE2) UE when compared to a scenario where both UEs competed under a common, undifferentiated policy. Both UEs consistently achieved their target throughputs with zero packet loss in both competitive setups.
+2.  **Latency (RTT) Observations**: For the high-bandwidth UE (UE1), latency metrics did not differ significantly between the two competitive scenarios. For the medium-bandwidth UE (UE2), its **average RTT was statistically significantly higher** in the "Slicing-Competing" scenario compared to the "Baseline-Competing" scenario (p=0.0420). However, this difference was marginal in absolute terms, and its 95th percentile RTT showed no significant difference.
+3.  **Implications of UPF QoS Capabilities**: The findings underscore the critical role of the User Plane Function's (UPF) QoS enforcement capabilities. The observed lack of strong performance differentiation or clear isolation benefits from S-NSSAI based slicing in this free5GC setup (using the default gtp5g kernel module) is consistent with its known limitations in strictly enforcing data plane QoS differentiation.
+4.  **Recommendation on Slicing Strategy**: Based on these results, in environments with similar UPF QoS enforcement limitations and where network capacity is not the primary constraining factor for the offered load, **implementing S-NSSAI-based logical slicing alone may not provide substantial performance advantages or robust isolation over a well-managed shared network policy for the tested UDP traffic profiles.** In such contexts where demands are relatively low and UPF capabilities are limited, the overhead of managing distinct slice policies might not be justified if it does not translate to tangible and consistent user experience improvements. Slicing may offer more value when combined with a UPF capable of more granular QoS enforcement or when specific logical separation for management, security, or routing to different UPFs/DNs is the primary goal, rather than purely performance-based isolation with the current UPF.
 
 Further analysis of resource consumption data from Prometheus is recommended to correlate these network KPIs with NF-level resource utilization under different competitive scenarios.
 
